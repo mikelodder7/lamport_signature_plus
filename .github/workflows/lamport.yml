@@ -48,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo bininstall cargo-careful
+      - run: cargo binstall cargo-careful
       - run: cargo careful --all-features
 
   clippy:
@@ -69,13 +69,15 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
-      - run: cargo fmt --all-features -- --check
+      - run: cargo fmt -- --check
 
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
       - run: cargo doc --all-features
 
   deps:
@@ -83,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo bininstall cargo-udeps
+      - run: cargo binstall cargo-udeps
       - run: cargo udeps --all-targets --all-features
 
   outdate:
@@ -91,7 +93,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo bininstall cargo-outdated
+      - run: cargo binstall cargo-outdated
       - run: cargo outdated --root-deps-only --exit-code=1
 
   pants:
@@ -99,5 +101,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo bininstall cargo-pants
+      - run: cargo binstall cargo-pants
       - run: cargo pants --loud --dev
