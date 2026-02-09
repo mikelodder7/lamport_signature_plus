@@ -136,8 +136,8 @@ impl<T: LamportDigest> SigningKey<T> {
     /// Create secret shares of the signing key where `threshold` are required
     /// to combine back into this secret.
     ///
-    /// Pass an adapter that implements [`SplitRng`]: use [`Rand::new`] for infallible
-    /// RNGs ([`rand::CryptoRng`]) or [`TryRand::new`] for fallible RNGs
+    /// Pass an adapter that implements [`SplitRng`](crate::SplitRng): use [`Rand::new`](crate::Rand::new) for infallible
+    /// RNGs ([`rand::CryptoRng`]) or [`TryRand::new`](crate::TryRand::new) for fallible RNGs
     /// ([`rand::TryRng`] + [`rand::TryCryptoRng`]). For fallible RNGs, any error from the RNG
     /// is returned as [`LamportError::General`].
     pub fn split<R: SplitRng>(

@@ -216,10 +216,10 @@ where
 
 impl<R: rand::TryRng + rand::TryCryptoRng> rand8::CryptoRng for TryRand<R> {}
 
-/// Trait for RNG adapters that can be used with [`SigningKey::split`].
+/// Trait for RNG adapters that can be used with [`SigningKey::split`](crate::SigningKey::split).
 ///
 /// Implemented for [`Rand`] (infallible RNG) and [`TryRand`] (fallible RNG).
-/// Use [`Rand::new`] for infallible RNGs or [`TryRand::new`] for fallible
+/// Use [`Rand::new`](crate::Rand::new) for infallible RNGs or [`TryRand::new`](crate::TryRand::new) for fallible
 /// RNGs, then pass the adapter to `split`.
 pub trait SplitRng {
     /// The adapter type that implements rand 0.8's RNG traits.
