@@ -9,10 +9,9 @@
 //! ```
 //! use lamport_signature_plus::{VerifyingKey, SigningKey, LamportFixedDigest};
 //! use sha2::Sha256;
-//! use rand::SeedableRng;
-//! use rand_chacha::ChaChaRng;
+//! use rand_chacha::{ChaChaRng, rand_core::SeedableRng};
 //!
-//! let mut rng = ChaChaRng::from_entropy();
+//! let mut rng = ChaChaRng::from_rng(&mut rand::rng());
 //! let mut signing_key = SigningKey::<LamportFixedDigest<Sha256>>::random(rng);
 //! let verifying_key = VerifyingKey::from(&signing_key);
 //! let signature = signing_key.sign(b"Hello, World!").expect("signing failed");
@@ -29,10 +28,9 @@
 //! ```
 //! use lamport_signature_plus::{VerifyingKey, SigningKey, LamportExtendableDigest};
 //! use sha3::Shake128;
-//! use rand::SeedableRng;
-//! use rand_chacha::ChaChaRng;
+//! use rand_chacha::{ChaChaRng, rand_core::SeedableRng};
 //!
-//! let mut rng = ChaChaRng::from_entropy();
+//! let mut rng = ChaChaRng::from_rng(&mut rand::rng());
 //! let mut signing = SigningKey::<LamportExtendableDigest<Shake128>>::random(rng);
 //! let verifying = VerifyingKey::from(&signing);
 //! let signature = signing.sign(b"Hello, World!").expect("signing failed");
@@ -47,32 +45,6 @@
 //! # Note
 //! [`SigningKey`] can only be used once to securely sign a message. If an attempt is made to sign a message with a used key, an error returns.
 
-#![deny(
-    missing_docs,
-    missing_debug_implementations,
-    trivial_casts,
-    trivial_numeric_casts,
-    unsafe_code,
-    unstable_features,
-    unused_import_braces,
-    unused_parens,
-    unused_lifetimes,
-    unused_qualifications,
-    unused_extern_crates,
-    clippy::unwrap_used
-)]
-#![warn(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss,
-    clippy::checked_conversions,
-    clippy::mod_module_files,
-    clippy::panic,
-    clippy::panic_in_result_fn,
-    rust_2018_idioms
-)]
-
 #[macro_use]
 mod utils;
 mod error;
@@ -85,15 +57,15 @@ mod verifying;
 pub use error::{LamportError, LamportResult};
 pub use hash::{LamportDigest, LamportExtendableDigest, LamportFixedDigest};
 pub use multi_vec::MultiVec;
-use rand::{CryptoRng, RngCore};
 pub use signature::{Signature, SignatureShare};
 pub use signing::{SigningKey, SigningKeyShare};
+pub use utils::{Rand, SplitRng, TryRand};
 pub use verifying::VerifyingKey;
 
+use rand::CryptoRng;
+
 /// Generate a new pair of keys.
-pub fn generate_keys<T: LamportDigest, R: RngCore + CryptoRng>(
-    rng: R,
-) -> (SigningKey<T>, VerifyingKey<T>) {
+pub fn generate_keys<T: LamportDigest, R: CryptoRng>(rng: R) -> (SigningKey<T>, VerifyingKey<T>) {
     let sk = SigningKey::<T>::random(rng);
     let pk = VerifyingKey::from(&sk);
     (sk, pk)
@@ -181,7 +153,7 @@ mod tests {
     fn vsss_key_round_trip() {
         let mut rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let sk = SigningKey::<LamportFixedDigest<Sha256>>::random(&mut rng);
-        let res = sk.split(3, 5, &mut rng);
+        let res = sk.split(3, 5, Rand::new(&mut rng));
         assert!(res.is_ok());
         let shares = res.unwrap();
 
@@ -204,7 +176,7 @@ mod tests {
         let mut rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let (sk, pk) = generate_keys::<LamportFixedDigest<Sha256>, _>(&mut rng);
         let message = b"hello, world!";
-        let mut shares = sk.split(3, 5, &mut rng).unwrap();
+        let mut shares = sk.split(3, 5, Rand::new(&mut rng)).unwrap();
         let signatures = shares
             .iter_mut()
             .map(|share| share.sign(message).unwrap())

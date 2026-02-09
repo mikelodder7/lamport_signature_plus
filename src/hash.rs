@@ -8,7 +8,7 @@ use digest::{
     generic_array::typenum::Unsigned, Digest, ExtendableOutput, FixedOutput, HashMarker, Update,
     XofReader,
 };
-use rand::{CryptoRng, RngCore};
+use rand::CryptoRng;
 use std::marker::PhantomData;
 
 /// A trait for providing Lamport supported digest functions.
@@ -39,7 +39,7 @@ pub trait LamportDigest {
     }
 
     /// Generate a random [`MultiVec`] data.
-    fn random(mut rng: impl RngCore + CryptoRng) -> MultiVec<u8, 2> {
+    fn random(mut rng: impl CryptoRng) -> MultiVec<u8, 2> {
         let bits = Self::digest_size_in_bits();
         let bytes = bits / 8;
         let mut data = vec![0u8; bits * bytes];

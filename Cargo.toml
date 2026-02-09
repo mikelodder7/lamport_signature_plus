@@ -8,25 +8,50 @@ license = "MIT/Apache-2.0"
 name = "lamport_signature_plus"
 readme = "README.md"
 repository = "https://github.com/mikelodder7/lamport_signature_plus"
-version = "0.3.0"
+version = "0.4.0"
 
 [dependencies]
 digest = "0.10"
 hex = "0.4"
-rand = "0.8"
+rand = "0.10"
+rand8 = { version = "0.8", package = "rand" }
 serde = "1.0"
-subtle = "2.5"
-thiserror = "1.0"
-vsss-rs = { version = "4.0", features = ["std"] }
+subtle = "2.6"
+thiserror = "2.0"
+vsss-rs = { version = "5.2", default-features = false, features = ["std"] }
 zeroize = "1"
 
 [dev-dependencies]
-criterion = "0.5"
-rand_chacha = "0.3"
+criterion = "0.8"
+rand_chacha = "0.10"
 sha2 = "0.10"
 sha3 = "0.10"
 blake2 = "0.10"
 whirlpool = "0.10"
+
+[lints.rust]
+missing_docs = "deny"
+missing_debug_implementations = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unsafe_code = "deny"
+unstable_features = "deny"
+unused_import_braces = "deny"
+unused_parens = "deny"
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+unused_extern_crates = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+cast_precision_loss = "warn"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+mod_module_files = "warn"
+panic = "warn"
+panic_in_result_fn = "warn"
 
 [[bench]]
 name = "blake2"
