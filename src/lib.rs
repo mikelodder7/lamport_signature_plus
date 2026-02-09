@@ -78,6 +78,7 @@ mod tests {
     use sha2::Sha256;
     use sha3::{Sha3_256, Sha3_512, Shake128};
     const SEED: [u8; 32] = [3u8; 32];
+    type Digest = LamportFixedDigest<Sha3_256>;
 
     #[test]
     fn key_bytes_round_trip() {
@@ -186,5 +187,56 @@ mod tests {
         assert!(res.is_ok());
         let signature = res.unwrap();
         assert!(pk.verify(&signature, message).is_ok());
+    }
+
+    #[test]
+    fn serde_postcard_round_trip() {
+        let rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
+        let (mut sk, pk) = generate_keys::<Digest, _>(rng);
+        let message = b"hello, world!";
+        let signature = sk.sign(message).expect("sign");
+
+        let pk_bytes = postcard::to_stdvec(&pk).expect("postcard serialize pk");
+        println!("pk_bytes: {}", pk_bytes.len());
+        let pk_restored: VerifyingKey<Digest> =
+            postcard::from_bytes(&pk_bytes).expect("postcard deserialize pk");
+        assert_eq!(pk.to_bytes(), pk_restored.to_bytes());
+
+        let sk_bytes = postcard::to_stdvec(&sk).expect("postcard serialize sk");
+        println!("sk_bytes: {}", sk_bytes.len());
+        let sk_restored: SigningKey<Digest> =
+            postcard::from_bytes(&sk_bytes).expect("postcard deserialize sk");
+        assert_eq!(sk.to_bytes(), sk_restored.to_bytes());
+
+        let sig_bytes = postcard::to_stdvec(&signature).expect("postcard serialize sig");
+        println!("sig_bytes: {}", sig_bytes.len());
+        let sig_restored: Signature<Digest> =
+            postcard::from_bytes(&sig_bytes).expect("postcard deserialize sig");
+        assert_eq!(signature.to_bytes(), sig_restored.to_bytes());
+        assert!(pk_restored.verify(&sig_restored, message).is_ok());
+    }
+
+    #[test]
+    fn serde_json_round_trip() {
+        let rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
+        let (mut sk, pk) = generate_keys::<Digest, _>(rng);
+        let message = b"hello, world!";
+        let signature = sk.sign(message).expect("sign");
+
+        let pk_json = serde_json::to_string(&pk).expect("serde_json serialize pk");
+        let pk_restored: VerifyingKey<Digest> =
+            serde_json::from_str(&pk_json).expect("serde_json deserialize pk");
+        assert_eq!(pk.to_bytes(), pk_restored.to_bytes());
+
+        let sk_json = serde_json::to_string(&sk).expect("serde_json serialize sk");
+        let sk_restored: SigningKey<Digest> =
+            serde_json::from_str(&sk_json).expect("serde_json deserialize sk");
+        assert_eq!(sk.to_bytes(), sk_restored.to_bytes());
+
+        let sig_json = serde_json::to_string(&signature).expect("serde_json serialize sig");
+        let sig_restored: Signature<Digest> =
+            serde_json::from_str(&sig_json).expect("serde_json deserialize sig");
+        assert_eq!(signature.to_bytes(), sig_restored.to_bytes());
+        assert!(pk_restored.verify(&sig_restored, message).is_ok());
     }
 }
