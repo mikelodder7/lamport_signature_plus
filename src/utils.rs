@@ -3,6 +3,11 @@
     SPDX-License-Identifier: Apache-2.0
 */
 use crate::MultiVec;
+use std::borrow::Cow;
+
+pub(crate) trait CanonicalBytes {
+    fn canonical_bytes(&self) -> Cow<'_, [u8]>;
+}
 
 macro_rules! serde_impl {
     ($name:ident) => {
@@ -11,11 +16,11 @@ macro_rules! serde_impl {
             where
                 S: serde::ser::Serializer,
             {
-                let bytes = self.to_bytes();
+                let bytes = crate::utils::CanonicalBytes::canonical_bytes(self);
                 if s.is_human_readable() {
-                    hex::encode(&bytes).serialize(s)
+                    hex::encode(bytes.as_ref()).serialize(s)
                 } else {
-                    s.serialize_bytes(&bytes)
+                    s.serialize_bytes(bytes.as_ref())
                 }
             }
         }
@@ -85,15 +90,33 @@ macro_rules! vec_impl {
     };
 }
 
+pub(crate) fn encode_slices(header: &[u8], slices: &[&[u8]]) -> Vec<u8> {
+    let capacity = header.len() + slices.iter().map(|slice| slice.len()).sum::<usize>();
+    let mut output = Vec::with_capacity(capacity);
+    output.extend_from_slice(header);
+    for slice in slices {
+        output.extend_from_slice(slice);
+    }
+    output
+}
+
+pub(crate) fn prefixed_share(identifier: u8, data: &[u8]) -> Vec<u8> {
+    encode_slices(&[identifier], &[data])
+}
+
 pub(crate) fn separate_one_and_zero_values(
     input: &[u8],
     bytes: usize,
 ) -> (MultiVec<u8, 2>, MultiVec<u8, 2>) {
     let bits = bytes * 8;
-    let mut zero_values = MultiVec::fill([bits, bytes], 0);
-    let mut one_values = MultiVec::fill([bits, bytes], 0);
-
-    zero_values.data = input[..bits * bytes].to_vec();
-    one_values.data = input[bits * bytes..].to_vec();
+    let split = bits * bytes;
+    let zero_values = MultiVec {
+        data: input[..split].to_vec(),
+        axes: [bits, bytes],
+    };
+    let one_values = MultiVec {
+        data: input[split..].to_vec(),
+        axes: [bits, bytes],
+    };
     (zero_values, one_values)
 }

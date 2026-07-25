@@ -2,9 +2,10 @@
     Copyright Michael Lodder. All Rights Reserved.
     SPDX-License-Identifier: Apache-2.0
 */
-use crate::utils::separate_one_and_zero_values;
+use crate::utils::{CanonicalBytes, encode_slices, separate_one_and_zero_values};
 use crate::{LamportDigest, LamportError, LamportResult, MultiVec, Signature, SigningKey};
 use std::marker::PhantomData;
+use subtle::{Choice, ConstantTimeEq};
 
 /// A one-time signing public key.
 ///
@@ -19,12 +20,18 @@ pub struct VerifyingKey<T: LamportDigest> {
 serde_impl!(VerifyingKey);
 vec_impl!(VerifyingKey);
 
+impl<T: LamportDigest> CanonicalBytes for VerifyingKey<T> {
+    fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        std::borrow::Cow::Owned(self.to_bytes())
+    }
+}
+
 impl<T: LamportDigest> VerifyingKey<T> {
     /// Constructs a [VerifyingKey] from the byte sequence
     pub fn from_bytes<B: AsRef<[u8]>>(input: B) -> LamportResult<VerifyingKey<T>> {
         let input = input.as_ref();
         let bits = T::digest_size_in_bits();
-        let bytes = bits / 8;
+        let bytes = T::digest_size_in_bytes();
 
         if input.len() != bits * bytes * 2 {
             return Err(LamportError::InvalidPrivateKeyBytes);
@@ -54,11 +61,7 @@ impl<T: LamportDigest> VerifyingKey<T> {
     /// assert!(public_key.to_bytes().len() == 32 * 256 * 2);
     /// ```
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.zero_values
-            .iter()
-            .chain(self.one_values.iter())
-            .copied()
-            .collect()
+        encode_slices(&[], &[self.zero_values.as_ref(), self.one_values.as_ref()])
     }
 
     /// Verifies the [`Signature`].
@@ -86,22 +89,26 @@ impl<T: LamportDigest> VerifyingKey<T> {
         }
 
         let data = data.as_ref();
-        let data_digest = T::digest(data);
+        let bytes = T::digest_size_in_bytes();
+        let mut data_digest = vec![0u8; bytes];
+        T::digest_into(data, &mut data_digest);
+        let mut hashed_value = vec![0u8; bytes];
+        let mut valid = Choice::from(1);
 
-        let res = data_digest.into_iter().enumerate().all(|(i, byte)| {
-            (0..8).all(|j| {
+        for (i, byte) in data_digest.into_iter().enumerate() {
+            for j in 0..8 {
                 let offset = i * 8 + j;
                 let choice = (byte >> j) & 1;
-                let hashed_value = T::digest(&signature.data[offset]);
+                T::digest_into(&signature.data[offset], &mut hashed_value);
                 let cmp = if choice == 1 {
                     &self.one_values[offset]
                 } else {
                     &self.zero_values[offset]
                 };
-                hashed_value == cmp
-            })
-        });
-        if res {
+                valid &= hashed_value.ct_eq(cmp);
+            }
+        }
+        if bool::from(valid) {
             Ok(())
         } else {
             Err(LamportError::InvalidSignatureBytes)

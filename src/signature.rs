@@ -2,6 +2,7 @@
     Copyright Michael Lodder. All Rights Reserved.
     SPDX-License-Identifier: Apache-2.0
 */
+use crate::utils::{CanonicalBytes, encode_slices, prefixed_share};
 use crate::{LamportDigest, LamportError, LamportResult, MultiVec};
 use std::marker::PhantomData;
 use vsss_rs::Gf256;
@@ -16,12 +17,18 @@ pub struct Signature<T: LamportDigest> {
 serde_impl!(Signature);
 vec_impl!(Signature);
 
+impl<T: LamportDigest> CanonicalBytes for Signature<T> {
+    fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        std::borrow::Cow::Borrowed(self.data.as_ref())
+    }
+}
+
 impl<T: LamportDigest> Signature<T> {
     /// Constructs a [`Signature`] from a byte sequence
     pub fn from_bytes<B: AsRef<[u8]>>(bytes: B) -> LamportResult<Self> {
         let bytes = bytes.as_ref();
         let digest_size_in_bits = T::digest_size_in_bits();
-        let digest_size_in_bytes = digest_size_in_bits / 8;
+        let digest_size_in_bytes = T::digest_size_in_bytes();
         let required_size_in_bytes = digest_size_in_bytes * digest_size_in_bits;
         if bytes.len() != required_size_in_bytes {
             return Err(LamportError::InvalidSignatureBytes);
@@ -46,17 +53,25 @@ impl<T: LamportDigest> Signature<T> {
         if shares.is_empty() {
             return Err(LamportError::InvalidSignatureBytes);
         }
-        if shares.len() < shares[0].threshold as usize {
+        let first = &shares[0];
+        if first.identifier == 0
+            || first.threshold < 2
+            || shares.iter().any(|share| {
+                share.identifier == 0
+                    || share.threshold != first.threshold
+                    || share.data.axes != first.data.axes
+                    || share.data.len() != first.data.len()
+            })
+        {
+            return Err(LamportError::InvalidSignatureBytes);
+        }
+        if shares.len() < first.threshold as usize {
             return Err(LamportError::VsssError(vsss_rs::Error::SharingMinThreshold));
         }
 
         let share_vecs: Vec<Vec<u8>> = shares
             .iter()
-            .map(|s| {
-                let mut v = vec![s.identifier];
-                v.extend(&s.data.data);
-                v
-            })
+            .map(|share| prefixed_share(share.identifier, &share.data.data))
             .collect();
 
         let data = Gf256::combine_array(&share_vecs)?;
@@ -83,12 +98,18 @@ pub struct SignatureShare<T: LamportDigest> {
 serde_impl!(SignatureShare);
 vec_impl!(SignatureShare);
 
+impl<T: LamportDigest> CanonicalBytes for SignatureShare<T> {
+    fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
+        std::borrow::Cow::Owned(self.to_bytes())
+    }
+}
+
 impl<T: LamportDigest> SignatureShare<T> {
     /// Constructs a [`SignatureShare`] from a byte sequence
     pub fn from_bytes<B: AsRef<[u8]>>(bytes: B) -> LamportResult<Self> {
         let bytes = bytes.as_ref();
         let digest_size_in_bits = T::digest_size_in_bits();
-        let digest_size_in_bytes = digest_size_in_bits / 8;
+        let digest_size_in_bytes = T::digest_size_in_bytes();
         let required_size_in_bytes = digest_size_in_bytes * digest_size_in_bits;
         if bytes.len() != required_size_in_bytes + 2 {
             return Err(LamportError::InvalidSignatureBytes);
@@ -113,11 +134,7 @@ impl<T: LamportDigest> SignatureShare<T> {
 
     /// Converts the inner signature data into a linearized vector.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![0u8; self.data.data.len() + 2];
-        bytes[0] = self.identifier;
-        bytes[1] = self.threshold;
-        bytes[2..].copy_from_slice(&self.data.data);
-        bytes
+        encode_slices(&[self.identifier, self.threshold], &[self.data.as_ref()])
     }
 }
 
@@ -194,10 +211,21 @@ mod tests {
             Err(LamportError::InvalidSignatureBytes)
         ));
 
-        let (_, shares) = signature_and_shares();
+        let (_, mut shares) = signature_and_shares();
         assert!(matches!(
             Signature::combine(&shares[..1]),
             Err(LamportError::VsssError(vsss_rs::Error::SharingMinThreshold))
+        ));
+        shares[1].threshold = 3;
+        assert!(matches!(
+            Signature::combine(&shares[..2]),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+        shares[1].threshold = 2;
+        shares[1].data.axes = [1, shares[1].data.len()];
+        assert!(matches!(
+            Signature::combine(&shares[..2]),
+            Err(LamportError::InvalidSignatureBytes)
         ));
     }
 
@@ -231,5 +259,16 @@ mod tests {
             SignatureShare::<Digest>::from_bytes(invalid_threshold),
             Err(LamportError::InvalidSignatureBytes)
         ));
+
+        let json = serde_json::to_string(share).expect("share JSON serialization should succeed");
+        let decoded: SignatureShare<Digest> =
+            serde_json::from_str(&json).expect("share JSON deserialization should succeed");
+        assert_eq!(decoded.to_bytes(), share.to_bytes());
+
+        let postcard =
+            postcard::to_stdvec(share).expect("share postcard serialization should succeed");
+        let decoded: SignatureShare<Digest> =
+            postcard::from_bytes(&postcard).expect("share postcard deserialization should succeed");
+        assert_eq!(decoded.to_bytes(), share.to_bytes());
     }
 }

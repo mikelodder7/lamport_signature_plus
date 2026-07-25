@@ -1,5 +1,6 @@
 [package]
 authors = ["Michael Lodder <redmike7@gmail.com>"]
+autobenches = false
 description = "An implementation of the Lamport one-time signature scheme."
 documentation = "https://docs.rs/lamport_signature_plus"
 edition = "2024"

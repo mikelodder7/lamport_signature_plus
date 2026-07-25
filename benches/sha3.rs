@@ -1,152 +1,31 @@
-//! SHA3 benchmarks
-#![allow(clippy::unwrap_used)]
+//! SHA3 and SHAKE benchmarks
 
+mod common;
+
+use common::bench_digest;
 use criterion::*;
-use lamport_signature_plus::{
-    LamportExtendableDigest, LamportFixedDigest, SigningKey, VerifyingKey,
-};
-use rand_chacha::{ChaCha20Rng, rand_core::SeedableRng};
+use lamport_signature_plus::{LamportExtendableDigest, LamportFixedDigest};
 use sha3::{Sha3_256, Sha3_384, Sha3_512};
 use shake::{Shake128, Shake256};
 
 fn bench_sha3_256(c: &mut Criterion) {
-    const DATA: &[u8] = b"hello, world!";
-
-    c.bench_function("New Signing Key with Sha3_256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let _ = SigningKey::<LamportFixedDigest<Sha3_256>>::random(rng);
-        });
-    });
-    c.bench_function("Sign with Sha3_256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_256>>::random(rng);
-            sk.sign(DATA).expect("operation should succeed");
-        });
-    });
-    c.bench_function("Verify with Sha3_256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_256>>::random(rng);
-            let pk = VerifyingKey::from(&sk);
-            let signature = sk.sign(DATA).expect("operation should succeed");
-            pk.verify(&signature, DATA)
-                .expect("operation should succeed");
-        });
-    });
+    bench_digest::<LamportFixedDigest<Sha3_256>>(c, "Sha3_256");
 }
 
 fn bench_sha3_384(c: &mut Criterion) {
-    const DATA: &[u8] = b"hello, world!";
-
-    c.bench_function("New Signing Key with Sha3_384", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let _ = SigningKey::<LamportFixedDigest<Sha3_384>>::random(rng);
-        });
-    });
-    c.bench_function("Sign with Sha3_384", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_384>>::random(rng);
-            sk.sign(DATA).expect("operation should succeed");
-        });
-    });
-    c.bench_function("Verify with Sha3_384", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_384>>::random(rng);
-            let pk = VerifyingKey::from(&sk);
-            let signature = sk.sign(DATA).expect("operation should succeed");
-            pk.verify(&signature, DATA)
-                .expect("operation should succeed");
-        });
-    });
+    bench_digest::<LamportFixedDigest<Sha3_384>>(c, "Sha3_384");
 }
 
 fn bench_sha3_512(c: &mut Criterion) {
-    const DATA: &[u8] = b"hello, world!";
-
-    c.bench_function("New Signing Key with Sha3_512", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let _ = SigningKey::<LamportFixedDigest<Sha3_512>>::random(rng);
-        });
-    });
-    c.bench_function("Sign with Sha3_512", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_512>>::random(rng);
-            sk.sign(DATA).expect("operation should succeed");
-        });
-    });
-    c.bench_function("Verify with Sha3_512", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportFixedDigest<Sha3_512>>::random(rng);
-            let pk = VerifyingKey::from(&sk);
-            let signature = sk.sign(DATA).expect("operation should succeed");
-            pk.verify(&signature, DATA)
-                .expect("operation should succeed");
-        });
-    });
+    bench_digest::<LamportFixedDigest<Sha3_512>>(c, "Sha3_512");
 }
 
 fn bench_shake128(c: &mut Criterion) {
-    const DATA: &[u8] = b"hello, world!";
-
-    c.bench_function("New Signing Key with Shake128", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let _ = SigningKey::<LamportExtendableDigest<Shake128>>::random(rng);
-        });
-    });
-    c.bench_function("Sign with Shake128", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportExtendableDigest<Shake128>>::random(rng);
-            sk.sign(DATA).expect("operation should succeed");
-        });
-    });
-    c.bench_function("Verify with Shake128", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportExtendableDigest<Shake128>>::random(rng);
-            let pk = VerifyingKey::from(&sk);
-            let signature = sk.sign(DATA).expect("operation should succeed");
-            pk.verify(&signature, DATA)
-                .expect("operation should succeed");
-        });
-    });
+    bench_digest::<LamportExtendableDigest<Shake128>>(c, "Shake128");
 }
 
 fn bench_shake256(c: &mut Criterion) {
-    const DATA: &[u8] = b"hello, world!";
-
-    c.bench_function("New Signing Key with Shake256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let _ = SigningKey::<LamportExtendableDigest<Shake256>>::random(rng);
-        });
-    });
-    c.bench_function("Sign with Shake256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportExtendableDigest<Shake256>>::random(rng);
-            sk.sign(DATA).expect("operation should succeed");
-        });
-    });
-    c.bench_function("Verify with Shake256", |b| {
-        b.iter(|| {
-            let rng = ChaCha20Rng::from_seed([0u8; 32]);
-            let mut sk = SigningKey::<LamportExtendableDigest<Shake256>>::random(rng);
-            let pk = VerifyingKey::from(&sk);
-            let signature = sk.sign(DATA).expect("operation should succeed");
-            pk.verify(&signature, DATA)
-                .expect("operation should succeed");
-        });
-    });
+    bench_digest::<LamportExtendableDigest<Shake256>>(c, "Shake256");
 }
 
 criterion_group!(
@@ -157,5 +36,4 @@ criterion_group!(
     bench_shake128,
     bench_shake256
 );
-
 criterion_main!(benches);
