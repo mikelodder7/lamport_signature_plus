@@ -272,3 +272,93 @@ impl<T> IndexMut<(usize, RangeToInclusive<usize>)> for MultiVec<T, 2> {
         &mut self.data[b..b + j.end + 1]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    #[test]
+    fn construction_and_traits() {
+        let empty = MultiVec::<u8, 2>::default();
+        assert!(empty.is_empty());
+
+        let reserved = MultiVec::<u8, 2>::new([2, 3]);
+        assert!(reserved.is_empty());
+
+        let mut values =
+            MultiVec::fill_fn([2, 3], |i| u8::try_from(i).expect("test indices fit in u8"));
+        assert_eq!(values.len(), 6);
+        assert_eq!(values.as_ref(), &[0, 1, 2, 3, 4, 5]);
+        values.as_mut()[0] = 9;
+        values.iter_mut().for_each(|value| *value += 1);
+        assert_eq!(
+            values.iter().copied().collect::<Vec<_>>(),
+            [10, 2, 3, 4, 5, 6]
+        );
+
+        let cloned = values.clone();
+        assert_eq!(values, cloned);
+        assert_eq!(values.partial_cmp(&cloned), Some(std::cmp::Ordering::Equal));
+        assert_eq!(values.cmp(&cloned), std::cmp::Ordering::Equal);
+
+        let mut left_hasher = DefaultHasher::new();
+        values.hash(&mut left_hasher);
+        let mut right_hasher = DefaultHasher::new();
+        cloned.hash(&mut right_hasher);
+        assert_eq!(left_hasher.finish(), right_hasher.finish());
+
+        values.iso([3, 2]);
+        assert_eq!(values.to_vec(), vec![10, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn immutable_index_variants() {
+        let values = MultiVec::fill_fn([2, 4], |i| i);
+        assert_eq!(values[1], [4, 5, 6, 7]);
+        assert_eq!(values[(1, 2)], 6);
+        assert_eq!(values[(1, 1..3)], [5, 6]);
+        assert_eq!(values[(1, ..)], [4, 5, 6, 7]);
+        assert_eq!(values[(1, 2..)], [6, 7]);
+        assert_eq!(values[(1, ..2)], [4, 5]);
+        assert_eq!(values[(1, 1..=2)], [5, 6]);
+        assert_eq!(values[(1, ..=2)], [4, 5, 6]);
+    }
+
+    #[test]
+    fn mutable_index_variants() {
+        let mut values = MultiVec::fill([2, 8], 0u8);
+        values[0].copy_from_slice(&[1; 8]);
+        values[(0, 0)] = 2;
+        values[(0, 1..3)].copy_from_slice(&[3, 4]);
+        values[(0, 3..)].copy_from_slice(&[5, 6, 7, 8, 9]);
+        values[(1, ..2)].copy_from_slice(&[10, 11]);
+        values[(1, 2..=3)].copy_from_slice(&[12, 13]);
+        values[(1, ..=7)].copy_from_slice(&[14; 8]);
+        values[(1, ..)].copy_from_slice(&[15; 8]);
+
+        assert_eq!(values[0], [2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(values[1], [15; 8]);
+    }
+
+    #[test]
+    fn zeroize_clears_values() {
+        let mut values = MultiVec::fill([2, 2], 7u8);
+        values.zeroize();
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn new_rejects_zero_axis() {
+        let _ = MultiVec::<u8, 2>::new([0, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion")]
+    fn iso_rejects_different_element_count() {
+        let mut values = MultiVec::fill([2, 2], 0u8);
+        values.iso([1, 3]);
+    }
+}

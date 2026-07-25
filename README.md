@@ -3,6 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/lamport_signature_plus.svg)](https://crates.io/crates/lamport_signature_plus)
 [![docs.rs](https://docs.rs/lamport_signature/badge.svg)](https://docs.rs/lamport_signature_plus)
 [![GitHub license](https://img.shields.io/badge/license-Apache2.0.svg)](https://github.com/mikelodder7/lamport_signature_plus/blob/master/LICENSE)
+[![codecov](https://codecov.io/gh/mikelodder7/lamport_signature_plus/branch/main/graph/badge.svg)](https://codecov.io/gh/mikelodder7/lamport_signature_plus)
 
 *lamport_signature_plus* is an implementation of the [Lamport one-time signature scheme](https://en.wikipedia.org/wiki/Lamport_signature).
 
@@ -33,14 +34,14 @@ This crate supports threshold signing by first splitting the `SigningKey` into s
 `SignatureShare`s from each share. The `SignatureShare`s can then be combined into a `Signature` using the `combine` method.
 
 ```rust
-use lamport_signature_plus::{VerifyingKey, SigningKey, LamportFixedDigest, Rand, generate_keys};
+use lamport_signature_plus::{VerifyingKey, SigningKey, LamportFixedDigest, generate_keys};
 use sha2::Sha256;
 
 const SEED: [u8; 32] = [0u8; 32];
 let mut rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
 let (sk, pk) = generate_keys::<LamportFixedDigest<Sha256>, _>(&mut rng);
 let message = b"hello, world!";
-let mut shares = sk.split(3, 5, Rand::new(&mut rng)).unwrap();
+let mut shares = sk.split(3, 5, &mut rng).unwrap();
 let signatures = shares
     .iter_mut()
     .map(|share| share.sign(message).unwrap())

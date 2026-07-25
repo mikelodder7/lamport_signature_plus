@@ -120,3 +120,116 @@ impl<T: LamportDigest> SignatureShare<T> {
         bytes
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{LamportFixedDigest, SigningKey};
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    use sha2::Sha256;
+
+    type Digest = LamportFixedDigest<Sha256>;
+
+    fn signature_and_shares() -> (Signature<Digest>, Vec<SignatureShare<Digest>>) {
+        let mut rng = ChaCha8Rng::from_seed([8; 32]);
+        let key = SigningKey::<Digest>::random(&mut rng);
+        let mut key_shares = key
+            .split(2, 3, &mut rng)
+            .expect("key splitting should succeed");
+        let shares = key_shares
+            .iter_mut()
+            .map(|share| {
+                share
+                    .sign(b"message")
+                    .expect("share signing should succeed")
+            })
+            .collect::<Vec<_>>();
+        let signature =
+            Signature::combine(&shares[..2]).expect("signature combining should succeed");
+        (signature, shares)
+    }
+
+    #[test]
+    fn signature_bytes_and_conversion_traits_round_trip() {
+        let (signature, _) = signature_and_shares();
+        let bytes = signature.to_bytes();
+
+        assert_eq!(Vec::from(&signature), bytes);
+        assert_eq!(Vec::from(signature.clone()), bytes);
+        assert_eq!(
+            Signature::<Digest>::try_from(bytes.clone())
+                .expect("vector conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            Signature::<Digest>::try_from(&bytes)
+                .expect("vector reference conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            Signature::<Digest>::try_from(bytes.as_slice())
+                .expect("slice conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            Signature::<Digest>::try_from(bytes.clone().into_boxed_slice())
+                .expect("boxed slice conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+    }
+
+    #[test]
+    fn signature_rejects_invalid_inputs() {
+        assert!(matches!(
+            Signature::<Digest>::from_bytes([]),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+        assert!(matches!(
+            Signature::<Digest>::combine(&[]),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+
+        let (_, shares) = signature_and_shares();
+        assert!(matches!(
+            Signature::combine(&shares[..1]),
+            Err(LamportError::VsssError(vsss_rs::Error::SharingMinThreshold))
+        ));
+    }
+
+    #[test]
+    fn signature_share_bytes_round_trip_and_validate_metadata() {
+        let (_, shares) = signature_and_shares();
+        let share = &shares[0];
+        let bytes = share.to_bytes();
+        assert_eq!(
+            SignatureShare::<Digest>::from_bytes(&bytes)
+                .expect("signature share decoding should succeed")
+                .to_bytes(),
+            bytes
+        );
+
+        assert!(matches!(
+            SignatureShare::<Digest>::from_bytes([]),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+
+        let mut invalid_identifier = bytes.clone();
+        invalid_identifier[0] = 0;
+        assert!(matches!(
+            SignatureShare::<Digest>::from_bytes(invalid_identifier),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+
+        let mut invalid_threshold = bytes;
+        invalid_threshold[1] = 1;
+        assert!(matches!(
+            SignatureShare::<Digest>::from_bytes(invalid_threshold),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+    }
+}

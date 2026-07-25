@@ -121,3 +121,72 @@ impl<T: LamportDigest> From<&SigningKey<T>> for VerifyingKey<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LamportFixedDigest;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    use sha2::Sha256;
+
+    type Digest = LamportFixedDigest<Sha256>;
+
+    #[test]
+    fn bytes_and_conversion_traits_round_trip() {
+        let key = SigningKey::<Digest>::random(ChaCha8Rng::from_seed([11; 32]));
+        let verifying_key = VerifyingKey::from(&key);
+        let bytes = verifying_key.to_bytes();
+
+        assert_eq!(
+            VerifyingKey::<Digest>::from_bytes(&bytes)
+                .expect("verifying key decoding should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(Vec::from(&verifying_key), bytes);
+        assert_eq!(Vec::from(verifying_key.clone()), bytes);
+        assert_eq!(
+            VerifyingKey::<Digest>::try_from(bytes.clone())
+                .expect("vector conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            VerifyingKey::<Digest>::try_from(&bytes)
+                .expect("vector reference conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            VerifyingKey::<Digest>::try_from(bytes.as_slice())
+                .expect("slice conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert_eq!(
+            VerifyingKey::<Digest>::try_from(bytes.clone().into_boxed_slice())
+                .expect("boxed slice conversion should succeed")
+                .to_bytes(),
+            bytes
+        );
+        assert!(matches!(
+            VerifyingKey::<Digest>::from_bytes([]),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+    }
+
+    #[test]
+    fn verify_rejects_malformed_signature_shape() {
+        let key = SigningKey::<Digest>::random(ChaCha8Rng::from_seed([12; 32]));
+        let verifying_key = VerifyingKey::from(&key);
+        let signature = Signature {
+            data: MultiVec::fill([1, 1], 0),
+            algorithm: PhantomData,
+        };
+        assert!(matches!(
+            verifying_key.verify(&signature, b"message"),
+            Err(LamportError::InvalidSignatureBytes)
+        ));
+    }
+}

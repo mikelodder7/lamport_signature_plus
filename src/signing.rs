@@ -3,7 +3,7 @@
     SPDX-License-Identifier: Apache-2.0
 */
 use crate::signature::SignatureShare;
-use crate::utils::{separate_one_and_zero_values, SplitRng};
+use crate::utils::separate_one_and_zero_values;
 use crate::{LamportDigest, LamportError, LamportResult, MultiVec, Signature};
 use std::marker::PhantomData;
 use subtle::{Choice, ConditionallySelectable};
@@ -136,15 +136,12 @@ impl<T: LamportDigest> SigningKey<T> {
     /// Create secret shares of the signing key where `threshold` are required
     /// to combine back into this secret.
     ///
-    /// Pass an adapter that implements [`SplitRng`](crate::SplitRng): use [`Rand::new`](crate::Rand::new) for infallible
-    /// RNGs ([`rand::CryptoRng`]) or [`TryRand::new`](crate::TryRand::new) for fallible RNGs
-    /// ([`rand::TryRng`] + [`rand::TryCryptoRng`]). For fallible RNGs, any error from the RNG
-    /// is returned as [`LamportError::General`].
-    pub fn split<R: SplitRng>(
+    /// The random number generator must be cryptographically secure.
+    pub fn split(
         &self,
         threshold: usize,
         shares: usize,
-        mut rng: R,
+        mut rng: impl rand::CryptoRng,
     ) -> LamportResult<Vec<SigningKeyShare<T>>> {
         let threshold_u8 = u8::try_from(threshold)
             .map_err(|_| LamportError::General("threshold out of range".into()))?;
@@ -153,18 +150,10 @@ impl<T: LamportDigest> SigningKey<T> {
             threshold,
             shares,
             self.zero_values.data.as_slice(),
-            rng.adapter(),
+            &mut rng,
         )?;
-        let one_shares = Gf256::split_array(
-            threshold,
-            shares,
-            self.one_values.data.as_slice(),
-            rng.adapter(),
-        )?;
-
-        if let Some(e) = rng.take_error() {
-            return Err(LamportError::General(e.to_string()));
-        }
+        let one_shares =
+            Gf256::split_array(threshold, shares, self.one_values.data.as_slice(), &mut rng)?;
 
         let output = zero_shares
             .into_iter()
@@ -321,5 +310,131 @@ impl<T: LamportDigest> SigningKeyShare<T> {
             one_values,
             algorithm: PhantomData,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::LamportFixedDigest;
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+    use sha2::Sha256;
+
+    type Digest = LamportFixedDigest<Sha256>;
+
+    fn key_and_shares() -> (SigningKey<Digest>, Vec<SigningKeyShare<Digest>>) {
+        let mut rng = ChaCha8Rng::from_seed([9; 32]);
+        let key = SigningKey::<Digest>::random(&mut rng);
+        let shares = key
+            .split(2, 3, &mut rng)
+            .expect("key splitting should succeed");
+        (key, shares)
+    }
+
+    #[test]
+    fn signing_key_state_and_bytes_round_trip() {
+        let (mut key, _) = key_and_shares();
+        assert!(!key.used());
+        let bytes = key.to_bytes();
+        assert_eq!(
+            SigningKey::<Digest>::from_bytes(&bytes)
+                .expect("key decoding should succeed")
+                .to_bytes(),
+            bytes
+        );
+
+        key.sign(b"message").expect("signing should succeed");
+        assert!(key.used());
+        assert!(matches!(
+            key.sign(b"again"),
+            Err(LamportError::PrivateKeyReuseError)
+        ));
+
+        let used_bytes = key.to_bytes();
+        assert!(
+            SigningKey::<Digest>::from_bytes(used_bytes)
+                .expect("used key decoding should succeed")
+                .used()
+        );
+
+        let mut noncanonical_flag = bytes;
+        noncanonical_flag[0] = 2;
+        assert!(
+            !SigningKey::<Digest>::from_bytes(noncanonical_flag)
+                .expect("non-one flag should decode as unused")
+                .used()
+        );
+        assert!(matches!(
+            SigningKey::<Digest>::from_bytes([]),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+    }
+
+    #[test]
+    fn split_and_combine_validate_thresholds() {
+        let (key, shares) = key_and_shares();
+        let mut rng = ChaCha8Rng::from_seed([10; 32]);
+        assert!(matches!(
+            key.split(usize::from(u8::MAX) + 1, usize::from(u8::MAX) + 1, &mut rng),
+            Err(LamportError::General(_))
+        ));
+        assert!(matches!(
+            SigningKey::<Digest>::combine(&[]),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+        assert!(matches!(
+            SigningKey::<Digest>::combine(&shares[..1]),
+            Err(LamportError::VsssError(vsss_rs::Error::SharingMinThreshold))
+        ));
+    }
+
+    #[test]
+    fn signing_key_share_round_trip_validation_and_reuse() {
+        let (_, mut shares) = key_and_shares();
+        let share = &mut shares[0];
+        let bytes = share.to_bytes();
+        assert_eq!(
+            SigningKeyShare::<Digest>::from_bytes(&bytes)
+                .expect("key share decoding should succeed")
+                .to_bytes(),
+            bytes
+        );
+
+        assert!(matches!(
+            SigningKeyShare::<Digest>::from_bytes([]),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+        let mut invalid_identifier = bytes.clone();
+        invalid_identifier[0] = 0;
+        assert!(matches!(
+            SigningKeyShare::<Digest>::from_bytes(invalid_identifier),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+        let mut invalid_threshold = bytes;
+        invalid_threshold[1] = 1;
+        assert!(matches!(
+            SigningKeyShare::<Digest>::from_bytes(invalid_threshold),
+            Err(LamportError::InvalidPrivateKeyBytes)
+        ));
+
+        share
+            .sign(b"message")
+            .expect("share signing should succeed");
+        assert!(matches!(
+            share.sign(b"again"),
+            Err(LamportError::PrivateKeyReuseError)
+        ));
+    }
+
+    #[test]
+    fn zeroize_clears_private_material() {
+        let (mut key, mut shares) = key_and_shares();
+        key.zeroize();
+        shares[0].zeroize();
+        assert!(key.zero_values.is_empty());
+        assert!(key.one_values.is_empty());
+        assert!(shares[0].zero_values.is_empty());
+        assert!(shares[0].one_values.is_empty());
     }
 }

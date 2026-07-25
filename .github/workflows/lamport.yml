@@ -4,21 +4,27 @@ on:
   pull_request:
     paths-ignore:
       - README.md
+      - SECURITY.md
       - LICENSE-APACHE
       - LICENSE-MIT
+      - .pants-ignore
+      - rustfmt.toml
   push:
     branches: main
     paths-ignore:
       - README.md
+      - SECURITY.md
       - LICENSE-APACHE
       - LICENSE-MIT
+      - .pants-ignore
+      - rustfmt.toml
 
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
   RUST_LOG_STYLE: always
-  RUSTFLAGS: -D warnings
-  RUSTDOCFLAGS: -D warnings
+  RUSTFLAGS: "-Dwarnings"
+  RUSTDOCFLAGS: "-Dwarnings"
 
 defaults:
   run:
@@ -28,7 +34,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -37,47 +43,61 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-      - run: cargo test --all-features --benches --release
+      - run: cargo build --all-features --benches --release --keep-going
+      - run: cargo test --all-features --release
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info --fail-under-lines 98
+      - uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
 
   careful:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall --no-confirm cargo-careful
-      - run: cargo careful test tests --all-features --release
+      - run: cargo careful test tests
 
   clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: clippy
-      - run: cargo clippy --all-features -- -D warnings
+      - run: cargo clippy --all --all-features -- -D warnings
 
-  fmt:
+  rustfmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: rustfmt
       - run: cargo fmt -- --check
 
-  docs:
+  doc:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -86,7 +106,7 @@ jobs:
   deps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
@@ -97,18 +117,18 @@ jobs:
   outdated:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall --no-confirm cargo-outdated
-      - run: cargo outdated --root-deps-only --ignore rand8,rand --exit-code=1
+      - run: cargo outdated --root-deps-only --exit-code 1
 
   pants:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly

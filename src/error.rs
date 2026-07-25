@@ -41,3 +41,40 @@ impl From<&vsss_rs::Error> for LamportError {
 
 /// Result type for Lamport errors.
 pub type LamportResult<T> = Result<T, LamportError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn errors_have_useful_messages_and_conversions() {
+        let io = LamportError::from(std::io::Error::other("disk"));
+        assert_eq!(io.to_string(), "I/O error: disk");
+        assert_eq!(
+            LamportError::PrivateKeyReuseError.to_string(),
+            "Private key was reused."
+        );
+        assert_eq!(
+            LamportError::InvalidPrivateKeyBytes.to_string(),
+            "Invalid private key bytes."
+        );
+        assert_eq!(
+            LamportError::InvalidSignatureBytes.to_string(),
+            "Invalid signature bytes."
+        );
+        assert_eq!(
+            LamportError::General("details".into()).to_string(),
+            "General error: details"
+        );
+
+        let source = vsss_rs::Error::SharingMinThreshold;
+        assert!(matches!(
+            LamportError::from(source),
+            LamportError::VsssError(vsss_rs::Error::SharingMinThreshold)
+        ));
+        assert!(matches!(
+            LamportError::from(&source),
+            LamportError::VsssError(vsss_rs::Error::SharingMinThreshold)
+        ));
+    }
+}

@@ -27,7 +27,7 @@
 //! # Example of Extendable Output Size
 //! ```
 //! use lamport_signature_plus::{VerifyingKey, SigningKey, LamportExtendableDigest};
-//! use sha3::Shake128;
+//! use shake::Shake128;
 //! use rand_chacha::{ChaChaRng, rand_core::SeedableRng};
 //!
 //! let mut rng = ChaChaRng::from_rng(&mut rand::rng());
@@ -59,7 +59,6 @@ pub use hash::{LamportDigest, LamportExtendableDigest, LamportFixedDigest};
 pub use multi_vec::MultiVec;
 pub use signature::{Signature, SignatureShare};
 pub use signing::{SigningKey, SigningKeyShare};
-pub use utils::{Rand, SplitRng, TryRand};
 pub use verifying::VerifyingKey;
 
 use rand::CryptoRng;
@@ -76,7 +75,8 @@ mod tests {
     use super::*;
     use rand::SeedableRng;
     use sha2::Sha256;
-    use sha3::{Sha3_256, Sha3_512, Shake128};
+    use sha3::{Sha3_256, Sha3_512};
+    use shake::Shake128;
     const SEED: [u8; 32] = [3u8; 32];
     type Digest = LamportFixedDigest<Sha3_256>;
 
@@ -88,7 +88,7 @@ mod tests {
         let bytes = original_public_key.to_bytes();
         let res = VerifyingKey::<LamportFixedDigest<Sha3_256>>::from_bytes(&bytes);
         assert!(res.is_ok());
-        let restored_public_key = res.unwrap();
+        let restored_public_key = res.expect("operation should succeed");
         assert_eq!(
             restored_public_key.to_bytes(),
             original_public_key.to_bytes()
@@ -97,14 +97,14 @@ mod tests {
         let bytes = sk.to_bytes();
         let res = SigningKey::<LamportFixedDigest<Sha3_256>>::from_bytes(&bytes);
         assert!(res.is_ok());
-        let restored_private_key = res.unwrap();
+        let restored_private_key = res.expect("operation should succeed");
         assert_eq!(restored_private_key.to_bytes(), sk.to_bytes());
 
-        let signature = sk.sign(b"hello, world!").unwrap();
+        let signature = sk.sign(b"hello, world!").expect("operation should succeed");
         let bytes = signature.to_bytes();
         let res = Signature::<LamportFixedDigest<Sha3_256>>::from_bytes(&bytes);
         assert!(res.is_ok());
-        let restored_signature = res.unwrap();
+        let restored_signature = res.expect("operation should succeed");
         assert_eq!(restored_signature.to_bytes(), signature.to_bytes());
     }
 
@@ -134,9 +134,9 @@ mod tests {
         let (mut sk, pk) = generate_keys::<LamportFixedDigest<Sha3_256>, _>(rng);
 
         let message = b"hello, world!";
-        let signature = sk.sign(message).unwrap();
+        let signature = sk.sign(message).expect("operation should succeed");
         assert!(pk.verify(&signature, message).is_ok());
-        assert!(!pk.verify(&signature, b"hello, world").is_ok());
+        assert!(pk.verify(&signature, b"hello, world").is_err());
     }
 
     #[test]
@@ -145,27 +145,27 @@ mod tests {
         let (mut sk, pk) = generate_keys::<LamportExtendableDigest<Shake128>, _>(rng);
 
         let message = b"hello, world!";
-        let signature = sk.sign(message).unwrap();
+        let signature = sk.sign(message).expect("operation should succeed");
         assert!(pk.verify(&signature, message).is_ok());
-        assert!(!pk.verify(&signature, b"hello, world").is_ok());
+        assert!(pk.verify(&signature, b"hello, world").is_err());
     }
 
     #[test]
     fn vsss_key_round_trip() {
         let mut rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let sk = SigningKey::<LamportFixedDigest<Sha256>>::random(&mut rng);
-        let res = sk.split(3, 5, Rand::new(&mut rng));
+        let res = sk.split(3, 5, &mut rng);
         assert!(res.is_ok());
-        let shares = res.unwrap();
+        let shares = res.expect("operation should succeed");
 
         let res = SigningKey::<LamportFixedDigest<Sha256>>::combine(&shares[0..3]);
         assert!(res.is_ok());
-        let restored_key = res.unwrap();
+        let restored_key = res.expect("operation should succeed");
         assert_eq!(restored_key.to_bytes(), sk.to_bytes());
 
         let res = SigningKey::<LamportFixedDigest<Sha256>>::combine(&shares[2..5]);
         assert!(res.is_ok());
-        let restored_key = res.unwrap();
+        let restored_key = res.expect("operation should succeed");
         assert_eq!(restored_key.to_bytes(), sk.to_bytes());
 
         let res = SigningKey::<LamportFixedDigest<Sha256>>::combine(&shares[0..2]);
@@ -177,15 +177,15 @@ mod tests {
         let mut rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let (sk, pk) = generate_keys::<LamportFixedDigest<Sha256>, _>(&mut rng);
         let message = b"hello, world!";
-        let mut shares = sk.split(3, 5, Rand::new(&mut rng)).unwrap();
+        let mut shares = sk.split(3, 5, &mut rng).expect("operation should succeed");
         let signatures = shares
             .iter_mut()
-            .map(|share| share.sign(message).unwrap())
+            .map(|share| share.sign(message).expect("operation should succeed"))
             .collect::<Vec<_>>();
 
         let res = Signature::combine(&signatures[..3]);
         assert!(res.is_ok());
-        let signature = res.unwrap();
+        let signature = res.expect("operation should succeed");
         assert!(pk.verify(&signature, message).is_ok());
     }
 

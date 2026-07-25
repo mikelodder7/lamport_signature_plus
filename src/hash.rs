@@ -3,10 +3,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 use crate::MultiVec;
-use digest::core_api::BlockSizeUser;
 use digest::{
-    generic_array::typenum::Unsigned, Digest, ExtendableOutput, FixedOutput, HashMarker, Update,
-    XofReader,
+    Digest, ExtendableOutput, FixedOutput, HashMarker, Update, XofReader, block_api::BlockSizeUser,
+    typenum::Unsigned,
 };
 use rand::CryptoRng;
 use std::marker::PhantomData;
