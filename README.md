@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/lamport_signature_plus.svg)](https://crates.io/crates/lamport_signature_plus)
 [![docs.rs](https://docs.rs/lamport_signature/badge.svg)](https://docs.rs/lamport_signature_plus)
-[![GitHub license](https://img.shields.io/badge/license-Apache2.0.svg)](https://github.com/mikelodder7/lamport_signature_plus/blob/master/LICENSE)
+[![Apache 2.0/MIT licensed](https://img.shields.io/badge/license-Apache--2.0%2FMIT-blue.svg)](https://github.com/mikelodder7/lamport_signature_plus#license)
 [![codecov](https://codecov.io/gh/mikelodder7/lamport_signature_plus/branch/main/graph/badge.svg)](https://codecov.io/gh/mikelodder7/lamport_signature_plus)
 
 *lamport_signature_plus* is an implementation of the [Lamport one-time signature scheme](https://en.wikipedia.org/wiki/Lamport_signature).
