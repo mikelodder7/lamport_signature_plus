@@ -9,7 +9,7 @@ license = "MIT/Apache-2.0"
 name = "lamport_signature_plus"
 readme = "README.md"
 repository = "https://github.com/mikelodder7/lamport_signature_plus"
-version = "0.5.0-rc0"
+version = "0.5.0-rc1"
 
 [dependencies]
 digest = "0.11.3"
@@ -18,7 +18,7 @@ rand = "0.10"
 serde = "1.0"
 subtle = "2.6"
 thiserror = "2.0"
-vsss-rs = { version = "6.0.0-rc5", default-features = false, features = ["std"] }
+vsss-rs = { version = "6.0.0-rc6", default-features = false, features = ["std"] }
 zeroize = "1"
 
 [dev-dependencies]
