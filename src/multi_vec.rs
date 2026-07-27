@@ -274,6 +274,7 @@ impl<T> IndexMut<(usize, RangeToInclusive<usize>)> for MultiVec<T, 2> {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
     use std::collections::hash_map::DefaultHasher;

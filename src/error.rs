@@ -43,6 +43,7 @@ impl From<&vsss_rs::Error> for LamportError {
 pub type LamportResult<T> = Result<T, LamportError>;
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
 

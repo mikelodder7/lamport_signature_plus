@@ -39,6 +39,7 @@ trivial_casts = "deny"
 trivial_numeric_casts = "deny"
 unsafe_code = "deny"
 unstable_features = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
 unused_import_braces = "deny"
 unused_parens = "deny"
 unused_lifetimes = "deny"

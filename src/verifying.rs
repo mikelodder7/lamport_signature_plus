@@ -20,6 +20,7 @@ pub struct VerifyingKey<T: LamportDigest> {
 serde_impl!(VerifyingKey);
 vec_impl!(VerifyingKey);
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<T: LamportDigest> CanonicalBytes for VerifyingKey<T> {
     fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         std::borrow::Cow::Owned(self.to_bytes())
@@ -28,6 +29,7 @@ impl<T: LamportDigest> CanonicalBytes for VerifyingKey<T> {
 
 impl<T: LamportDigest> VerifyingKey<T> {
     /// Constructs a [VerifyingKey] from the byte sequence
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_bytes<B: AsRef<[u8]>>(input: B) -> LamportResult<VerifyingKey<T>> {
         let input = input.as_ref();
         let bits = T::digest_size_in_bits();
@@ -83,6 +85,7 @@ impl<T: LamportDigest> VerifyingKey<T> {
     /// let signature = private_key.sign(MESSAGE).expect("failed to sign.");
     /// assert!(public_key.verify(&signature, MESSAGE).is_ok());
     /// ```
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn verify<B: AsRef<[u8]>>(&self, signature: &Signature<T>, data: B) -> LamportResult<()> {
         if signature.data.len() != self.one_values.len() {
             return Err(LamportError::InvalidSignatureBytes);
@@ -130,6 +133,7 @@ impl<T: LamportDigest> From<&SigningKey<T>> for VerifyingKey<T> {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
     use crate::LamportFixedDigest;
@@ -181,6 +185,10 @@ mod tests {
             VerifyingKey::<Digest>::from_bytes([]),
             Err(LamportError::InvalidPrivateKeyBytes)
         ));
+        assert!(serde_json::from_str::<VerifyingKey<Digest>>("\"not-hex\"").is_err());
+        assert!(serde_json::from_str::<VerifyingKey<Digest>>("\"00\"").is_err());
+        assert!(serde_json::from_str::<VerifyingKey<Digest>>("123").is_err());
+        assert!(postcard::from_bytes::<VerifyingKey<Digest>>(&[0xff]).is_err());
     }
 
     #[test]

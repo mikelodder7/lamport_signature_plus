@@ -1,7 +1,7 @@
 # `lamport_signature`
 
 [![Crates.io](https://img.shields.io/crates/v/lamport_signature_plus.svg)](https://crates.io/crates/lamport_signature_plus)
-[![docs.rs](https://docs.rs/lamport_signature/badge.svg)](https://docs.rs/lamport_signature_plus)
+[![docs.rs](https://docs.rs/lamport_signature_plus/badge.svg)](https://docs.rs/lamport_signature_plus)
 [![Apache 2.0/MIT licensed](https://img.shields.io/badge/license-Apache--2.0%2FMIT-blue.svg)](https://github.com/mikelodder7/lamport_signature_plus#license)
 [![codecov](https://codecov.io/gh/mikelodder7/lamport_signature_plus/branch/main/graph/badge.svg)](https://codecov.io/gh/mikelodder7/lamport_signature_plus)
 
@@ -14,7 +14,7 @@ Documentation is [available here](https://docs.rs/lamport_signature_plus).
 ## Usage
 
 ```rust
-use lamport_signature::{VerifyingKey, SigningKey, LamportFixedDigest};
+use lamport_signature_plus::{VerifyingKey, SigningKey, LamportFixedDigest};
 use sha2::Sha256;
 use rand::thread_rng;
 
@@ -52,8 +52,6 @@ assert!(res.is_ok());
 let signature = res.unwrap();
 assert!(pk.verify(&signature, message).is_ok());
 ```
-
-# License
 
 ## License
 

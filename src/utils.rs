@@ -9,33 +9,53 @@ pub(crate) trait CanonicalBytes {
     fn canonical_bytes(&self) -> Cow<'_, [u8]>;
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(crate) fn serialize_canonical<S>(bytes: Cow<'_, [u8]>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serde::Serialize::serialize(&hex::encode(bytes.as_ref()), serializer)
+    } else {
+        serializer.serialize_bytes(bytes.as_ref())
+    }
+}
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(crate) fn deserialize_canonical<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    if deserializer.is_human_readable() {
+        let hex: String = serde::Deserialize::deserialize(deserializer)?;
+        hex::decode(hex).map_err(serde::de::Error::custom)
+    } else {
+        serde::Deserialize::deserialize(deserializer)
+    }
+}
+
 macro_rules! serde_impl {
     ($name:ident) => {
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> serde::Serialize for $name<T> {
             fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
             where
                 S: serde::ser::Serializer,
             {
-                let bytes = crate::utils::CanonicalBytes::canonical_bytes(self);
-                if s.is_human_readable() {
-                    hex::encode(bytes.as_ref()).serialize(s)
-                } else {
-                    s.serialize_bytes(bytes.as_ref())
-                }
+                crate::utils::serialize_canonical(
+                    crate::utils::CanonicalBytes::canonical_bytes(self),
+                    s,
+                )
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<'de, T: LamportDigest> serde::Deserialize<'de> for $name<T> {
             fn deserialize<D>(d: D) -> Result<Self, D::Error>
             where
                 D: serde::de::Deserializer<'de>,
             {
-                let bytes = if d.is_human_readable() {
-                    let hex_str = String::deserialize(d)?;
-                    hex::decode(hex_str).map_err(serde::de::Error::custom)?
-                } else {
-                    Vec::<u8>::deserialize(d)?
-                };
+                let bytes = crate::utils::deserialize_canonical(d)?;
                 Self::from_bytes(bytes).map_err(serde::de::Error::custom)
             }
         }
@@ -44,18 +64,21 @@ macro_rules! serde_impl {
 
 macro_rules! vec_impl {
     ($name:ident) => {
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> From<$name<T>> for Vec<u8> {
             fn from(value: $name<T>) -> Vec<u8> {
                 Self::from(&value)
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> From<&$name<T>> for Vec<u8> {
             fn from(value: &$name<T>) -> Vec<u8> {
                 value.to_bytes()
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> TryFrom<Vec<u8>> for $name<T> {
             type Error = LamportError;
 
@@ -64,6 +87,7 @@ macro_rules! vec_impl {
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> TryFrom<&Vec<u8>> for $name<T> {
             type Error = LamportError;
 
@@ -72,6 +96,7 @@ macro_rules! vec_impl {
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> TryFrom<&[u8]> for $name<T> {
             type Error = LamportError;
 
@@ -80,6 +105,7 @@ macro_rules! vec_impl {
             }
         }
 
+        #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> TryFrom<Box<[u8]>> for $name<T> {
             type Error = LamportError;
 

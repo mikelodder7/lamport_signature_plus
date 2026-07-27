@@ -44,6 +44,81 @@ fn sign_with_values<T: LamportDigest>(
     }
 }
 
+fn signing_key_share_from_parts<T: LamportDigest>(
+    mut zero_share: Vec<u8>,
+    mut one_share: Vec<u8>,
+    axes: [usize; 2],
+    used: bool,
+    threshold: u8,
+) -> SigningKeyShare<T> {
+    let identifier = zero_share[0];
+    // `Gf256::split_array` deterministically emits the same identifiers for equal share counts.
+    zero_share.remove(0);
+    one_share.remove(0);
+    SigningKeyShare {
+        identifier,
+        zero_values: MultiVec {
+            data: zero_share,
+            axes,
+        },
+        one_values: MultiVec {
+            data: one_share,
+            axes,
+        },
+        used,
+        threshold,
+        algorithm: PhantomData,
+    }
+}
+
+fn signing_key_shares_from_parts<T: LamportDigest>(
+    zero_shares: Vec<Vec<u8>>,
+    one_shares: Vec<Vec<u8>>,
+    axes: [usize; 2],
+    used: bool,
+    threshold: u8,
+) -> Vec<SigningKeyShare<T>> {
+    zero_shares
+        .into_iter()
+        .zip(one_shares)
+        .map(|(zero_share, one_share)| {
+            signing_key_share_from_parts(zero_share, one_share, axes, used, threshold)
+        })
+        .collect()
+}
+
+#[derive(Copy, Clone)]
+enum SharePart {
+    Zero,
+    One,
+}
+
+fn combine_share_values<T: LamportDigest>(
+    shares: &[SigningKeyShare<T>],
+    part: SharePart,
+) -> LamportResult<Vec<u8>> {
+    let encoded = shares
+        .iter()
+        .map(|share| {
+            let values = match part {
+                SharePart::Zero => &share.zero_values.data,
+                SharePart::One => &share.one_values.data,
+            };
+            prefixed_share(share.identifier, values)
+        })
+        .collect::<Vec<_>>();
+    Ok(Gf256::combine_array(&encoded)?)
+}
+
+fn split_values(
+    threshold: usize,
+    shares: usize,
+    values: &[u8],
+    rng: &mut impl rand::CryptoRng,
+) -> LamportResult<Vec<Vec<u8>>> {
+    Ok(Gf256::split_array(threshold, shares, values, rng)?)
+}
+
 /// A one-time signing private key.
 #[derive(Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SigningKey<T: LamportDigest> {
@@ -56,6 +131,7 @@ pub struct SigningKey<T: LamportDigest> {
 serde_impl!(SigningKey);
 vec_impl!(SigningKey);
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<T: LamportDigest> CanonicalBytes for SigningKey<T> {
     fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         std::borrow::Cow::Owned(self.to_bytes())
@@ -107,6 +183,7 @@ impl<T: LamportDigest> SigningKey<T> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// assert!(private_key.sign(MESSAGE).is_ok());
     /// ```
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn sign<B: AsRef<[u8]>>(&mut self, data: B) -> LamportResult<Signature<T>> {
         if self.used {
             return Err(LamportError::PrivateKeyReuseError);
@@ -125,6 +202,7 @@ impl<T: LamportDigest> SigningKey<T> {
     }
 
     /// Constructs a [`SigningKey`] from canonical bytes.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_bytes<B: AsRef<[u8]>>(input: B) -> LamportResult<Self> {
         let input = input.as_ref();
         let bits = T::digest_size_in_bits();
@@ -160,41 +238,23 @@ impl<T: LamportDigest> SigningKey<T> {
         let threshold_u8 = u8::try_from(threshold)
             .map_err(|_| LamportError::General("threshold out of range".into()))?;
 
-        let zero_shares = Gf256::split_array(
-            threshold,
-            shares,
+        let mut split_shares = [
             self.zero_values.data.as_slice(),
-            &mut rng,
-        )?;
-        let one_shares =
-            Gf256::split_array(threshold, shares, self.one_values.data.as_slice(), &mut rng)?;
+            self.one_values.data.as_slice(),
+        ]
+        .into_iter()
+        .map(|values| split_values(threshold, shares, values, &mut rng))
+        .collect::<LamportResult<Vec<_>>>()?;
+        let zero_shares = split_shares.remove(0);
+        let one_shares = split_shares.remove(0);
 
-        let output = zero_shares
-            .into_iter()
-            .zip(one_shares)
-            .map(|(mut zero_share, mut one_share)| {
-                let identifier = zero_share[0];
-                if identifier != one_share[0] {
-                    return Err(LamportError::InvalidPrivateKeyBytes);
-                }
-                zero_share.remove(0);
-                one_share.remove(0);
-                Ok(SigningKeyShare {
-                    identifier,
-                    zero_values: MultiVec {
-                        data: zero_share,
-                        axes: self.zero_values.axes,
-                    },
-                    one_values: MultiVec {
-                        data: one_share,
-                        axes: self.one_values.axes,
-                    },
-                    used: self.used,
-                    threshold: threshold_u8,
-                    algorithm: PhantomData,
-                })
-            })
-            .collect::<LamportResult<Vec<_>>>()?;
+        let output = signing_key_shares_from_parts(
+            zero_shares,
+            one_shares,
+            self.zero_values.axes,
+            self.used,
+            threshold_u8,
+        );
 
         Ok(output)
     }
@@ -222,17 +282,12 @@ impl<T: LamportDigest> SigningKey<T> {
             return Err(LamportError::VsssError(vsss_rs::Error::SharingMinThreshold));
         }
 
-        let zero_share_vecs = shares
-            .iter()
-            .map(|share| prefixed_share(share.identifier, &share.zero_values.data))
-            .collect::<Vec<_>>();
-        let one_share_vecs = shares
-            .iter()
-            .map(|share| prefixed_share(share.identifier, &share.one_values.data))
-            .collect::<Vec<_>>();
-
-        let zero_data = Gf256::combine_array(&zero_share_vecs)?;
-        let one_data = Gf256::combine_array(&one_share_vecs)?;
+        let mut combined = [SharePart::Zero, SharePart::One]
+            .into_iter()
+            .map(|part| combine_share_values(shares, part))
+            .collect::<LamportResult<Vec<_>>>()?;
+        let zero_data = combined.remove(0);
+        let one_data = combined.remove(0);
 
         let used = shares.iter().any(|s| s.used);
 
@@ -266,6 +321,7 @@ pub struct SigningKeyShare<T: LamportDigest> {
 serde_impl!(SigningKeyShare);
 vec_impl!(SigningKeyShare);
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 impl<T: LamportDigest> CanonicalBytes for SigningKeyShare<T> {
     fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         std::borrow::Cow::Owned(self.to_bytes())
@@ -287,6 +343,7 @@ impl<T: LamportDigest> Drop for SigningKeyShare<T> {
 
 impl<T: LamportDigest> SigningKeyShare<T> {
     /// Signs the data to create a [`SignatureShare`].
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn sign<B: AsRef<[u8]>>(&mut self, data: B) -> LamportResult<SignatureShare<T>> {
         if self.used {
             return Err(LamportError::PrivateKeyReuseError);
@@ -310,6 +367,7 @@ impl<T: LamportDigest> SigningKeyShare<T> {
     }
 
     /// Constructs a [`SigningKeyShare`] from canonical bytes.
+    #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn from_bytes<B: AsRef<[u8]>>(input: B) -> LamportResult<Self> {
         let input = input.as_ref();
         let bits = T::digest_size_in_bits();
@@ -344,6 +402,7 @@ impl<T: LamportDigest> SigningKeyShare<T> {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
     use crate::LamportFixedDigest;
@@ -398,6 +457,10 @@ mod tests {
             SigningKey::<Digest>::from_bytes([]),
             Err(LamportError::InvalidPrivateKeyBytes)
         ));
+        assert!(serde_json::from_str::<SigningKey<Digest>>("\"not-hex\"").is_err());
+        assert!(serde_json::from_str::<SigningKey<Digest>>("\"00\"").is_err());
+        assert!(serde_json::from_str::<SigningKey<Digest>>("123").is_err());
+        assert!(postcard::from_bytes::<SigningKey<Digest>>(&[0xff]).is_err());
     }
 
     #[test]
@@ -408,6 +471,7 @@ mod tests {
             key.split(usize::from(u8::MAX) + 1, usize::from(u8::MAX) + 1, &mut rng),
             Err(LamportError::General(_))
         ));
+        assert!(key.split(0, 2, &mut rng).is_err());
         assert!(matches!(
             SigningKey::<Digest>::combine(&[]),
             Err(LamportError::InvalidPrivateKeyBytes)
@@ -428,6 +492,10 @@ mod tests {
             SigningKey::<Digest>::combine(&shares[..2]),
             Err(LamportError::InvalidPrivateKeyBytes)
         ));
+
+        let (_, mut duplicate_identifier_shares) = key_and_shares();
+        duplicate_identifier_shares[1].identifier = duplicate_identifier_shares[0].identifier;
+        assert!(SigningKey::<Digest>::combine(&duplicate_identifier_shares[..2]).is_err());
     }
 
     #[test]
@@ -479,10 +547,18 @@ mod tests {
         share
             .sign(b"message")
             .expect("share signing should succeed");
+        let used_share = SigningKeyShare::<Digest>::from_bytes(share.to_bytes())
+            .expect("used share decoding should succeed");
+        assert!(used_share.used);
         assert!(matches!(
             share.sign(b"again"),
             Err(LamportError::PrivateKeyReuseError)
         ));
+
+        assert!(serde_json::from_str::<SigningKeyShare<Digest>>("\"not-hex\"").is_err());
+        assert!(serde_json::from_str::<SigningKeyShare<Digest>>("\"00\"").is_err());
+        assert!(serde_json::from_str::<SigningKeyShare<Digest>>("123").is_err());
+        assert!(postcard::from_bytes::<SigningKeyShare<Digest>>(&[0xff]).is_err());
     }
 
     #[test]

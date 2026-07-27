@@ -2,6 +2,8 @@
     Copyright Michael Lodder. All Rights Reserved.
     SPDX-License-Identifier: Apache-2.0
 */
+#![cfg_attr(coverage_nightly, allow(unstable_features))]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 //! Implementation of [Lamport's one-time signature scheme](https://en.wikipedia.org/wiki/Lamport_signature).
 //!
 //! # Usage
@@ -71,6 +73,7 @@ pub fn generate_keys<T: LamportDigest, R: CryptoRng>(rng: R) -> (SigningKey<T>, 
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
     use rand::SeedableRng;

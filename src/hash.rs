@@ -113,6 +113,7 @@ where
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use super::*;
     use sha2::Sha256;
@@ -162,6 +163,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "digest size must be a whole number of bytes")]
     fn digest_size_rejects_partial_bytes() {
+        assert_eq!(InvalidSizeDigest::digest(b"message"), [0]);
         let _ = InvalidSizeDigest::digest_size_in_bytes();
     }
 
