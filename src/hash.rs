@@ -7,7 +7,7 @@ use digest::{
     Digest, ExtendableOutput, FixedOutput, HashMarker, Update, XofReader, block_api::BlockSizeUser,
     typenum::Unsigned,
 };
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use std::marker::PhantomData;
 
 /// A trait for providing Lamport supported digest functions.

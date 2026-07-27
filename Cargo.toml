@@ -9,21 +9,22 @@ license = "MIT/Apache-2.0"
 name = "lamport_signature_plus"
 readme = "README.md"
 repository = "https://github.com/mikelodder7/lamport_signature_plus"
-version = "0.5.0-rc1"
+version = "0.5.0-rc2"
 
 [dependencies]
 digest = "0.11.3"
-hex = "0.4"
-rand = "0.10"
-serde = "1.0"
-subtle = "2.6"
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+rand_core = "0.10"
+serde = { version = "1.0", default-features = false, features = ["std"] }
+subtle = { version = "2.6", default-features = false }
 thiserror = "2.0"
-vsss-rs = { version = "6.0.0-rc6", default-features = false, features = ["std"] }
+vsss-rs = { version = "6.0.0-rc8", default-features = false, features = ["alloc"] }
 zeroize = "1"
 
 [dev-dependencies]
 criterion = "0.8"
 postcard = { version = "1.0", features = ["use-std"] }
+rand = "0.10"
 rand_chacha = "0.10"
 serde_json = "1.0"
 sha2 = "0.11"

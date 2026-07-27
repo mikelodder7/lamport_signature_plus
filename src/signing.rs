@@ -114,7 +114,7 @@ fn split_values(
     threshold: usize,
     shares: usize,
     values: &[u8],
-    rng: &mut impl rand::CryptoRng,
+    rng: &mut impl rand_core::CryptoRng,
 ) -> LamportResult<Vec<Vec<u8>>> {
     Ok(Gf256::split_array(threshold, shares, values, rng)?)
 }
@@ -158,7 +158,7 @@ impl<T: LamportDigest> SigningKey<T> {
     }
 
     /// Constructs a [`SigningKey`] with Digest algorithm type and the specified RNG.
-    pub fn random(mut rng: impl rand::CryptoRng) -> SigningKey<T> {
+    pub fn random(mut rng: impl rand_core::CryptoRng) -> SigningKey<T> {
         SigningKey {
             zero_values: T::random(&mut rng),
             one_values: T::random(&mut rng),
@@ -233,7 +233,7 @@ impl<T: LamportDigest> SigningKey<T> {
         &self,
         threshold: usize,
         shares: usize,
-        mut rng: impl rand::CryptoRng,
+        mut rng: impl rand_core::CryptoRng,
     ) -> LamportResult<Vec<SigningKeyShare<T>>> {
         let threshold_u8 = u8::try_from(threshold)
             .map_err(|_| LamportError::General("threshold out of range".into()))?;

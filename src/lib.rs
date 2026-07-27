@@ -63,7 +63,7 @@ pub use signature::{Signature, SignatureShare};
 pub use signing::{SigningKey, SigningKeyShare};
 pub use verifying::VerifyingKey;
 
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 
 /// Generate a new pair of keys.
 pub fn generate_keys<T: LamportDigest, R: CryptoRng>(rng: R) -> (SigningKey<T>, VerifyingKey<T>) {
