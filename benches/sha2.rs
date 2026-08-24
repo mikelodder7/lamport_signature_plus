@@ -1,4 +1,4 @@
-//! SHA2 benchmarks
+//! SHA-2 benchmarks.
 
 mod common;
 

@@ -10,7 +10,7 @@ use digest::{
 use rand_core::CryptoRng;
 use std::marker::PhantomData;
 
-/// A trait for providing Lamport supported digest functions.
+/// Digest operations required by the Lamport signature scheme.
 pub trait LamportDigest {
     /// The size of the digest in bits.
     fn digest_size_in_bits() -> usize;
@@ -30,7 +30,7 @@ pub trait LamportDigest {
         output.copy_from_slice(&digest);
     }
 
-    /// Hash the input [`MultiVec`] data to output another [`MultiVec`].
+    /// Hash the input [`MultiVec`] into another [`MultiVec`].
     fn hash(data: &MultiVec<u8, 2>) -> MultiVec<u8, 2> {
         let bits = Self::digest_size_in_bits();
         let bytes = Self::digest_size_in_bytes();
@@ -47,7 +47,7 @@ pub trait LamportDigest {
         outer
     }
 
-    /// Generate a random [`MultiVec`] data.
+    /// Generate a [`MultiVec`] containing random data.
     fn random(mut rng: impl CryptoRng) -> MultiVec<u8, 2> {
         let bits = Self::digest_size_in_bits();
         let bytes = Self::digest_size_in_bytes();
@@ -60,7 +60,7 @@ pub trait LamportDigest {
     }
 }
 
-/// Lamport signature scheme than uses fixed output functions.
+/// A Lamport signature scheme that uses fixed-output functions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct LamportFixedDigest<T>(PhantomData<T>)
 where
@@ -84,7 +84,7 @@ where
     }
 }
 
-/// Lamport signature scheme than uses extendable output functions.
+/// A Lamport signature scheme that uses extendable-output functions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct LamportExtendableDigest<T>(PhantomData<T>)
 where

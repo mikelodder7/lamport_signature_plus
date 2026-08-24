@@ -4,25 +4,34 @@
 */
 use thiserror::Error;
 
-/// Errors in lamport signing scheme.
+/// Errors produced by the Lamport signature scheme.
 #[derive(Error, Debug)]
 pub enum LamportError {
     /// I/O error.
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
-    /// Vsss error.
-    #[error("Vsss error: {0}")]
+    /// VSSS error.
+    #[error("VSSS error: {0}")]
     VsssError(vsss_rs::Error),
     /// Private key was reused.
     #[error("Private key was reused.")]
     PrivateKeyReuseError,
+    /// The Merkle tree depth is not supported.
+    #[error("Merkle tree depth must be between 1 and 3.")]
+    InvalidTreeDepth,
+    /// All one-time keys in the Merkle tree have been used.
+    #[error("All Merkle tree signing keys have been used.")]
+    NoUnusedSigningKeys,
+    /// The Merkle authentication path is invalid.
+    #[error("Invalid Merkle authentication path.")]
+    InvalidMerkleProof,
     /// Invalid private key bytes.
     #[error("Invalid private key bytes.")]
     InvalidPrivateKeyBytes,
     /// Invalid signature bytes.
     #[error("Invalid signature bytes.")]
     InvalidSignatureBytes,
-    /// General Purpose errors
+    /// General-purpose error.
     #[error("General error: {0}")]
     General(String),
 }
@@ -54,6 +63,18 @@ mod tests {
         assert_eq!(
             LamportError::PrivateKeyReuseError.to_string(),
             "Private key was reused."
+        );
+        assert_eq!(
+            LamportError::InvalidTreeDepth.to_string(),
+            "Merkle tree depth must be between 1 and 3."
+        );
+        assert_eq!(
+            LamportError::NoUnusedSigningKeys.to_string(),
+            "All Merkle tree signing keys have been used."
+        );
+        assert_eq!(
+            LamportError::InvalidMerkleProof.to_string(),
+            "Invalid Merkle authentication path."
         );
         assert_eq!(
             LamportError::InvalidPrivateKeyBytes.to_string(),

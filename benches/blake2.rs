@@ -1,4 +1,4 @@
-//! BLAKE2 benchmarks
+//! BLAKE2 benchmarks.
 
 mod common;
 

@@ -1,4 +1,4 @@
-//! SHA3 and SHAKE benchmarks
+//! SHA-3 and SHAKE benchmarks.
 
 mod common;
 

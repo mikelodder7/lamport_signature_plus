@@ -1,4 +1,4 @@
-//! Whirlpool benchmarks
+//! Whirlpool benchmarks.
 
 mod common;
 

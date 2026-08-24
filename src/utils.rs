@@ -3,12 +3,15 @@
     SPDX-License-Identifier: Apache-2.0
 */
 use crate::MultiVec;
+#[cfg(feature = "serde")]
 use std::borrow::Cow;
 
+#[cfg(feature = "serde")]
 pub(crate) trait CanonicalBytes {
     fn canonical_bytes(&self) -> Cow<'_, [u8]>;
 }
 
+#[cfg(feature = "serde")]
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(crate) fn serialize_canonical<S>(bytes: Cow<'_, [u8]>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -21,6 +24,7 @@ where
     }
 }
 
+#[cfg(feature = "serde")]
 #[cfg_attr(coverage_nightly, coverage(off))]
 pub(crate) fn deserialize_canonical<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
@@ -36,6 +40,7 @@ where
 
 macro_rules! serde_impl {
     ($name:ident) => {
+        #[cfg(feature = "serde")]
         #[cfg_attr(coverage_nightly, coverage(off))]
         impl<T: LamportDigest> serde::Serialize for $name<T> {
             fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
@@ -49,6 +54,7 @@ macro_rules! serde_impl {
             }
         }
 
+        #[cfg(feature = "serde")]
         #[cfg_attr(coverage_nightly, coverage(off))]
         impl<'de, T: LamportDigest> serde::Deserialize<'de> for $name<T> {
             fn deserialize<D>(d: D) -> Result<Self, D::Error>

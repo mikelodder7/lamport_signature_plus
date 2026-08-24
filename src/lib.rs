@@ -20,13 +20,16 @@
 //! assert!(verifying_key.verify(&signature, b"Hello, World!").is_ok());
 //! ```
 //!
-//! # Digest Algorithm
+//! # Digest algorithms
 //!
-//! [`SigningKey`] and [`VerifyingKey`] can use any digest algorithm types that provided by [RustCrypto/hashes](https://github.com/RustCrypto/hashes) as a type argument to construct.
-//! Algorithms can be either fixed output size or extendable output size.
-//! Extendable Output Size algorithms default to 32 byte lengths.
+//! [`SigningKey`] and [`VerifyingKey`] accept hash functions provided by
+//! [RustCrypto/hashes](https://github.com/RustCrypto/hashes). Use
+//! [`LamportFixedDigest`] for fixed-output functions or
+//! [`LamportExtendableDigest`] for extendable-output functions. Extendable-output
+//! functions use a 64-byte output.
 //!
-//! # Example of Extendable Output Size
+//! # Extendable-output example
+//!
 //! ```
 //! use lamport_signature_plus::{VerifyingKey, SigningKey, LamportExtendableDigest};
 //! use shake::Shake128;
@@ -39,18 +42,48 @@
 //! assert!(verifying.verify(&signature, b"Hello, World!").is_ok());
 //! ```
 //!
-//! # RNG Algorithm
+//! # Random number generators
 //!
-//! [`SigningKey`] takes the cryptographically secure RNG implemented in [rust-lang-nursery/rand](https://github.com/rust-lang-nursery/rand) as an argument to construct,
-//! i.e. RNG must implement the `RngCore` and `CryptoRng` traits.
+//! [`SigningKey`] requires a cryptographically secure random number generator
+//! that implements `CryptoRng`.
 //!
 //! # Note
-//! [`SigningKey`] can only be used once to securely sign a message. If an attempt is made to sign a message with a used key, an error returns.
+//!
+//! A [`SigningKey`] can securely sign only one message. Attempting to sign with
+//! a used key returns an error.
+//!
+//! # Merkle-tree Lamport signatures
+//!
+//! [`MtSigningKey`] commits 2, 4, or 8 one-time Lamport public keys in a
+//! Merkle tree. Its compact [`MtVerifyingKey`] is only the tree depth and root.
+//! Each [`MtSignature`] carries its leaf public key and authentication path.
+//!
+//! ```
+//! use lamport_signature_plus::{LamportFixedDigest, generate_mt_keys};
+//! use rand::SeedableRng;
+//! use rand_chacha::ChaCha8Rng;
+//! use sha2::Sha256;
+//!
+//! let mut rng = ChaCha8Rng::from_seed([7; 32]);
+//! let (mut signing_key, verifying_key) =
+//!     generate_mt_keys::<LamportFixedDigest<Sha256>, _>(2, &mut rng)?;
+//!
+//! let signature = signing_key.sign(b"first message")?;
+//! assert_eq!(signature.index(), 0);
+//! verifying_key.verify(&signature, b"first message")?;
+//! # Ok::<(), lamport_signature_plus::LamportError>(())
+//! ```
+//!
+//! The MT signing key is stateful. Persist its updated state after every
+//! signature; restoring an older copy can reuse a Lamport leaf and destroy
+//! security. Each signing operation destroys the consumed leaf secret, so the
+//! canonical signing-key state becomes smaller as indices are consumed.
 
 #[macro_use]
 mod utils;
 mod error;
 mod hash;
+mod merkle;
 mod multi_vec;
 mod signature;
 mod signing;
@@ -58,6 +91,7 @@ mod verifying;
 
 pub use error::{LamportError, LamportResult};
 pub use hash::{LamportDigest, LamportExtendableDigest, LamportFixedDigest};
+pub use merkle::{MtSignature, MtSignatureShare, MtSigningKey, MtSigningKeyShare, MtVerifyingKey};
 pub use multi_vec::MultiVec;
 pub use signature::{Signature, SignatureShare};
 pub use signing::{SigningKey, SigningKeyShare};
@@ -65,11 +99,25 @@ pub use verifying::VerifyingKey;
 
 use rand_core::CryptoRng;
 
-/// Generate a new pair of keys.
+/// Generate a new key pair.
 pub fn generate_keys<T: LamportDigest, R: CryptoRng>(rng: R) -> (SigningKey<T>, VerifyingKey<T>) {
     let sk = SigningKey::<T>::random(rng);
     let pk = VerifyingKey::from(&sk);
     (sk, pk)
+}
+
+/// Generate a stateful Merkle-tree Lamport key pair.
+///
+/// `depth` must be 1, 2, or 3, providing 2, 4, or 8 one-time signatures.
+/// The caller must persist the updated signing key after each signature to
+/// prevent state rollback and one-time-key reuse.
+pub fn generate_mt_keys<T: LamportDigest, R: CryptoRng>(
+    depth: u8,
+    rng: R,
+) -> LamportResult<(MtSigningKey<T>, MtVerifyingKey<T>)> {
+    let sk = MtSigningKey::<T>::random(depth, rng)?;
+    let pk = MtVerifyingKey::from(&sk);
+    Ok((sk, pk))
 }
 
 #[cfg(test)]
@@ -193,6 +241,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn serde_postcard_round_trip() {
         let rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let (mut sk, pk) = generate_keys::<Digest, _>(rng);
@@ -220,6 +269,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn serde_json_round_trip() {
         let rng = rand_chacha::ChaCha8Rng::from_seed(SEED);
         let (mut sk, pk) = generate_keys::<Digest, _>(rng);

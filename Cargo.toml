@@ -1,29 +1,34 @@
 [package]
 authors = ["Michael Lodder <redmike7@gmail.com>"]
 autobenches = false
-description = "An implementation of the Lamport one-time signature scheme."
+description = "Lamport one-time and Merkle-tree signatures with threshold signing support."
 documentation = "https://docs.rs/lamport_signature_plus"
 edition = "2024"
-keywords = ["lamport", "signature", "crypto", "cryptography"]
-license = "MIT/Apache-2.0"
+keywords = ["lamport", "merkle", "signature", "crypto", "cryptography"]
+license = "MIT OR Apache-2.0"
 name = "lamport_signature_plus"
 readme = "README.md"
 repository = "https://github.com/mikelodder7/lamport_signature_plus"
-version = "0.5.0-rc2"
+rust-version = "1.96"
+version = "0.5.0"
+
+[features]
+default = ["serde"]
+serde = ["dep:hex", "dep:serde"]
 
 [dependencies]
 digest = "0.11.3"
-hex = { version = "0.4", default-features = false, features = ["alloc"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
 rand_core = "0.10"
-serde = { version = "1.0", default-features = false, features = ["std"] }
+serde = { version = "1.0", default-features = false, features = ["std"], optional = true }
 subtle = { version = "2.6", default-features = false }
-thiserror = "2.0"
-vsss-rs = { version = "6.0.0-rc8", default-features = false, features = ["alloc"] }
+thiserror = "2.0.20"
+vsss-rs = { version = "6.0", default-features = false, features = ["alloc"] }
 zeroize = "1"
 
 [dev-dependencies]
 criterion = "0.8"
-postcard = { version = "1.0", features = ["use-std"] }
+postcard = { version = "1.0", default-features = false, features = ["use-std"] }
 rand = "0.10"
 rand_chacha = "0.10"
 serde_json = "1.0"

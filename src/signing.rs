@@ -3,7 +3,9 @@
     SPDX-License-Identifier: Apache-2.0
 */
 use crate::signature::SignatureShare;
-use crate::utils::{CanonicalBytes, encode_slices, prefixed_share, separate_one_and_zero_values};
+#[cfg(feature = "serde")]
+use crate::utils::CanonicalBytes;
+use crate::utils::{encode_slices, prefixed_share, separate_one_and_zero_values};
 use crate::{LamportDigest, LamportError, LamportResult, MultiVec, Signature};
 use std::marker::PhantomData;
 use subtle::{Choice, ConditionallySelectable};
@@ -94,7 +96,7 @@ enum SharePart {
 }
 
 fn combine_share_values<T: LamportDigest>(
-    shares: &[SigningKeyShare<T>],
+    shares: &[&SigningKeyShare<T>],
     part: SharePart,
 ) -> LamportResult<Vec<u8>> {
     let encoded = shares
@@ -132,6 +134,7 @@ serde_impl!(SigningKey);
 vec_impl!(SigningKey);
 
 #[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg(feature = "serde")]
 impl<T: LamportDigest> CanonicalBytes for SigningKey<T> {
     fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         std::borrow::Cow::Owned(self.to_bytes())
@@ -152,12 +155,12 @@ impl<T: LamportDigest> Drop for SigningKey<T> {
 }
 
 impl<T: LamportDigest> SigningKey<T> {
-    /// Has this key been used.
+    /// Return whether this key has been used.
     pub fn used(&self) -> bool {
         self.used
     }
 
-    /// Constructs a [`SigningKey`] with Digest algorithm type and the specified RNG.
+    /// Construct a [`SigningKey`] using the specified digest algorithm and RNG.
     pub fn random(mut rng: impl rand_core::CryptoRng) -> SigningKey<T> {
         SigningKey {
             zero_values: T::random(&mut rng),
@@ -225,8 +228,8 @@ impl<T: LamportDigest> SigningKey<T> {
         })
     }
 
-    /// Create secret shares of the signing key where `threshold` are required
-    /// to combine back into this secret.
+    /// Create secret shares such that `threshold` shares are required to
+    /// reconstruct this signing key.
     ///
     /// The random number generator must be cryptographically secure.
     pub fn split(
@@ -259,8 +262,13 @@ impl<T: LamportDigest> SigningKey<T> {
         Ok(output)
     }
 
-    /// Reconstruct the signing key from the secret shares created by `split`
+    /// Reconstruct a signing key from shares created by [`split`](Self::split).
     pub fn combine(shares: &[SigningKeyShare<T>]) -> LamportResult<Self> {
+        let shares = shares.iter().collect::<Vec<_>>();
+        Self::combine_refs(&shares)
+    }
+
+    pub(crate) fn combine_refs(shares: &[&SigningKeyShare<T>]) -> LamportResult<Self> {
         if shares.is_empty() {
             return Err(LamportError::InvalidPrivateKeyBytes);
         }
@@ -306,8 +314,7 @@ impl<T: LamportDigest> SigningKey<T> {
     }
 }
 
-/// A key share that must be combined with other secret key shares to produce the signing key,
-/// or used for creating partial signatures.
+/// A key share used to reconstruct a signing key or create a partial signature.
 #[derive(Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct SigningKeyShare<T: LamportDigest> {
     pub(crate) identifier: u8,
@@ -322,6 +329,7 @@ serde_impl!(SigningKeyShare);
 vec_impl!(SigningKeyShare);
 
 #[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg(feature = "serde")]
 impl<T: LamportDigest> CanonicalBytes for SigningKeyShare<T> {
     fn canonical_bytes(&self) -> std::borrow::Cow<'_, [u8]> {
         std::borrow::Cow::Owned(self.to_bytes())
@@ -342,7 +350,7 @@ impl<T: LamportDigest> Drop for SigningKeyShare<T> {
 }
 
 impl<T: LamportDigest> SigningKeyShare<T> {
-    /// Signs the data to create a [`SignatureShare`].
+    /// Sign the data to create a [`SignatureShare`].
     #[cfg_attr(coverage_nightly, coverage(off))]
     pub fn sign<B: AsRef<[u8]>>(&mut self, data: B) -> LamportResult<SignatureShare<T>> {
         if self.used {
@@ -422,6 +430,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn signing_key_state_and_bytes_round_trip() {
         let (mut key, _) = key_and_shares();
         assert!(!key.used());
@@ -499,6 +508,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn signing_key_share_round_trip_validation_and_reuse() {
         let (_, mut shares) = key_and_shares();
         let share = &mut shares[0];

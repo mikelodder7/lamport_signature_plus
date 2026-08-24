@@ -1,7 +1,11 @@
 //! Public API coverage for generic serialization and conversion implementations.
 
+#![cfg(feature = "serde")]
+
 use lamport_signature_plus::{
-    LamportFixedDigest, Signature, SignatureShare, SigningKey, SigningKeyShare, VerifyingKey,
+    LamportFixedDigest, MtSignature, MtSignatureShare, MtSigningKey, MtSigningKeyShare,
+    MtVerifyingKey, Signature, SignatureShare, SigningKey, SigningKeyShare, VerifyingKey,
+    generate_mt_keys,
 };
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -48,6 +52,34 @@ fn generic_serialization_paths() {
     assert_conversions::<SigningKey<Digest>>(signing_key.to_bytes());
     assert_conversions::<SignatureShare<Digest>>(signature_shares[0].to_bytes());
     assert_conversions::<SigningKeyShare<Digest>>(key_shares[0].to_bytes());
+
+    let (mt_key, mt_verifying_key) =
+        generate_mt_keys::<Digest, _>(1, &mut rng).expect("MT key generation should succeed");
+    let mut mt_key_shares = mt_key
+        .split(2, 2, &mut rng)
+        .expect("MT key splitting should succeed");
+    let mt_signature_shares = mt_key_shares
+        .iter_mut()
+        .map(|share| {
+            share
+                .sign(b"MT message")
+                .expect("MT partial signing should succeed")
+        })
+        .collect::<Vec<_>>();
+    let mt_signature =
+        MtSignature::combine(&mt_signature_shares).expect("MT combining should succeed");
+
+    round_trip(&mt_key);
+    round_trip(&mt_verifying_key);
+    round_trip(&mt_signature);
+    round_trip(&mt_key_shares[0]);
+    round_trip(&mt_signature_shares[0]);
+
+    assert_conversions::<MtSigningKey<Digest>>(mt_key.to_bytes());
+    assert_conversions::<MtVerifyingKey<Digest>>(mt_verifying_key.to_bytes());
+    assert_conversions::<MtSignature<Digest>>(mt_signature.to_bytes());
+    assert_conversions::<MtSigningKeyShare<Digest>>(mt_key_shares[0].to_bytes());
+    assert_conversions::<MtSignatureShare<Digest>>(mt_signature_shares[0].to_bytes());
 }
 
 fn round_trip<T>(value: &T)
