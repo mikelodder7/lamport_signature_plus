@@ -79,7 +79,9 @@ fn tree_levels_from_leaves<T: LamportDigest>(leaves: Vec<Vec<u8>>) -> Vec<Vec<Ve
     while levels.last().map_or(0, Vec::len) > 1 {
         let previous = &levels[levels.len() - 1];
         let next = previous
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| hash_node::<T>(&pair[0], &pair[1]))
             .collect();
         levels.push(next);
